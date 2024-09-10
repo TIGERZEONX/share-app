@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced File Sharing with Friends</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+  <script src="https://apis.google.com/js/api.js"></script>
+</head>
+<body onload="handleClientLoad()">
+  <!-- Header with Navigation -->
+  <header>
+    <div class="logo">FileShare+</div>
+    <nav>
+      <ul>
+        <li><a href="#">Home</a></li>
+        <li><a href="#">My Files</a></li>
+        <li><a href="#" onclick="openUploadModal()">Upload</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Upload Modal -->
+  <div id="uploadModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeUploadModal()">&times;</span>
+      <h2>Upload a File</h2>
+      <button onclick="createPicker()" class="upload-btn">Choose File from Google Drive</button>
+    </div>
+  </div>
+
+  <!-- Main Section -->
+  <main>
+    <h2>Shared Files</h2>
+    <div id="file-list" class="file-list">
+      <!-- File items will be populated here -->
+    </div>
+
+    <!-- Floating Action Button -->
+    <div class="fab" onclick="openUploadModal()">
+      <i class="fas fa-upload"></i>
+    </div>
+  </main>
+
+  <!-- JavaScript for Google Picker API and UI interactions -->
+  <script>
+    var developerKey = 'YOUR_DEVELOPER_KEY'; // Replace with your Google API Developer Key
+    var clientId = 'YOUR_CLIENT_ID'; // Replace with your Google Client ID
+    var scope = ['https://www.googleapis.com/auth/drive.file'];
+    var pickerApiLoaded = false;
+    var oauthToken;
+
+    function handleClientLoad() {
+      gapi.load('auth', {'callback': onAuthApiLoad});
+      gapi.load('picker', {'callback': onPickerApiLoad});
+    }
+
+    function onAuthApiLoad() {
+      gapi.auth.authorize(
+        {
+          'client_id': clientId,
+          'scope': scope,
+          'immediate': false
+        },
+        handleAuthResult);
+    }
+
+    function handleAuthResult(authResult) {
+      if (authResult && !authResult.error) {
+        oauthToken = authResult.access_token;
+        loadDriveFiles();
+      }
+    }
+
+    function onPickerApiLoad() {
+      pickerApiLoaded = true;
+    }
+
+    function createPicker() {
+      if (pickerApiLoaded && oauthToken) {
+        var picker = new google.picker.PickerBuilder()
+          .addView(google.picker.ViewId.DOCS)
+          .setOAuthToken(oauthToken)
+          .setDeveloperKey(developerKey)
+          .setCallback(pickerCallback)
+          .build();
+        picker.setVisible(true);
+      }
+    }
+
+    function pickerCallback(data) {
+      if (data.action == google.picker.Action.PICKED) {
+        var fileId = data.docs[0].id;
+        loadDriveFiles(); // Refresh the file list
+      }
+    }
+
+    function loadDriveFiles() {
+      gapi.client.load('drive', 'v3', function () {
+        gapi.client.drive.files.list({
+          'pageSize': 10,
+          'fields': "nextPageToken, files(id, name, createdTime, owners, mimeType, size)"
+        }).then(function (response) {
+          var files = response.result.files;
+          var fileList = document.getElementById('file-list');
+          fileList.innerHTML = '';
+          if (files && files.length > 0) {
+            files.forEach(function (file) {
+              var fileItem = document.createElement('div');
+              fileItem.className = 'file-item';
+              fileItem.innerHTML = `
+                <i class="fas fa-file-alt"></i>
+                <p><strong>${file.name}</strong></p>
+                <p>Uploaded by: ${file.owners[0].displayName}</p>
+                <p>Date: ${new Date(file.createdTime).toLocaleString()}</p>
+                <p>Size: ${(file.size / 1024).toFixed(2)} KB</p>
+              `;
+              fileList.appendChild(fileItem);
+            });
+          } else {
+            fileList.innerHTML = '<p>No files found.</p>';
+          }
+        });
+      });
+    }
+
+    function openUploadModal() {
+      document.getElementById('uploadModal').style.display = 'block';
+    }
+
+    function closeUploadModal() {
+      document.getElementById('uploadModal').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
